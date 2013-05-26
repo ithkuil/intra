@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+coffee -c public/js/*.coffee
+coffee server.coffee

@@ -1,0 +1,34 @@
+html, body {
+  background-color: black;
+}
+
+.scrname {
+  font-size: 8pt;
+}
+
+.dropdown-menu>li>a.keep1 {
+  display: inline;
+}
+
+.statusinfo {
+  position: fixed;
+  bottom: 0;
+  left: 35%;
+  width: 65%;
+  overflow: hidden;
+  color: white;
+  font-size: 9pt;
+  background-color: rgb (6,6,6,0.8);
+}
+
+/*
+.navbar .brand {
+  font-size: 11pt;
+  padding: 10px;
+  margin-bottom: 0px;
+}
+
+.navbar .nav>li>a {
+  padding: 10px;
+  padding-bottom: 0px;
+} */

@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>WebRTC p2p data</title>
+    <script src="https://webrtc-samples.googlecode.com/svn/trunk/apprtc/js/adapter.js"></script>
+</head>
+<body>
+Testing WebRTC connection.
+
+<button id=msg1 type=button>PC1 -> PC2</button>
+<button id=msg2 type=button>PC2 -> PC1</button>
+
+<script>
+/* See also:
+    http://www.html5rocks.com/en/tutorials/webrtc/basics/
+    https://code.google.com/p/webrtc-samples/source/browse/trunk/apprtc/index.html
+    
+    https://webrtc-demos.appspot.com/html/pc1.html
+*/
+
+var cfg = {"iceServers":[{"url":"stun:23.21.150.121"}]},
+    con = { 'optional': [{'DtlsSrtpKeyAgreement': true}, {'RtpDataChannels': true }] };
+
+// createDataChannel needs `open /Applications/Google\ Chrome\ Canary.app --args --enable-data-channels` :-(
+
+
+/* THIS IS ALICE, THE CALLER/SENDER */
+
+var pc1 = new RTCPeerConnection(cfg, con),
+    dc1 = null, tn1 = null;
+
+function setupDC1() {
+    try {
+        dc1 = pc1.createDataChannel('test', {reliable:false});
+        console.log("Created datachannel (pc1)");
+        dc1.onmessage = function (e) {
+            console.log("Got message (pc1)", e.data);
+        }        
+    } catch (e) { console.warn("No data channel (pc1)", e); }
+}
+// Chrome needs us to do set up the data channel right away, for Firefox see below
+//  see https://webrtc-demos.appspot.com/html/dc1.html
+if (!pc1.connectDataConnection) setupDC1();
+
+getUserMedia({'audio':true, fake:true}, function (stream) {
+    console.log("Got local audio", stream);
+    pc1.addStream(stream);
+    //tn1 = pc1.createDTMFSender(pc1.getLocalStreams()[0].getAudioTracks()[0])
+    pc1.createOffer(function (offerDesc) {
+        console.log("Got offer", offerDesc);
+        pc1.setLocalDescription(offerDesc);
+        handleOfferFromPC1(offerDesc);
+    }, function () { console.warn("No create offer"); });
+    
+}, function () { console.warn("No audio"); });
+
+pc1.onicecandidate = function (e) {
+    console.log("ICE candidate (pc1)", e);
+    if (e.candidate) handleCandidateFromPC1(e.candidate)
+};
+
+function handleAnswerFromPC2(answerDesc) {
+    pc1.setRemoteDescription(answerDesc);
+    // WORKAROUND: Firefox currently needs us to set up a special connection thingy (2013/02/26)
+    //  see http://mozilla.github.com/webrtc-landing/data_test.html
+    //  and https://hacks.mozilla.org/2012/11/progress-update-on-webrtc-for-firefox-on-desktop/
+    //  and http://stackoverflow.com/questions/14134090/how-is-a-webrtc-peer-connection-established)
+    if (pc1.connectDataConnection) {
+        pc1.connectDataConnection(9876, 5432);
+        pc1.onconnection = setupDC1;
+    }
+}
+
+function handleCandidateFromPC2(iceCandidate) {
+    pc1.addIceCandidate(iceCandidate);
+}
+
+document.getElementById('msg1').addEventListener('click', function () {
+    if (tn1) tn1.insertDTMF('123213');
+    if (dc1) dc1.send("ping");
+}, false);
+
+
+/* THIS IS BOB, THE ANSWERER/RECEIVER */
+
+var pc2 = new RTCPeerConnection(cfg, con),
+    dc2 = null;
+
+pc2.ondatachannel = function (e) {
+    var datachannel = e.channel || e;       // Chrome sends event, FF sends raw channel
+    console.log("Received datachannel (pc2)", arguments);
+    dc2 = datachannel;
+    dc2.onmessage = function (e) {
+        console.log("Got message (pc2)", e.data);
+    }
+}
+
+function handleOfferFromPC1(offerDesc) {
+    pc2.setRemoteDescription(offerDesc);
+    pc2.createAnswer(function (answerDesc) {
+        console.log("Got answer", answerDesc);
+        pc2.setLocalDescription(answerDesc);
+        handleAnswerFromPC2(answerDesc);
+        if (pc2.connectDataConnection) pc2.connectDataConnection(5432, 9876);
+    }, function () { console.warn("No create answer"); });
+}
+
+pc2.onicecandidate = function (e) {
+    console.log("ICE candidate (pc2)", e);
+    if (e.candidate) handleCandidateFromPC2(e.candidate)
+};
+
+function handleCandidateFromPC1(iceCandidate) {
+    pc2.addIceCandidate(iceCandidate);
+}
+
+pc2.onaddstream = function (e) {
+    console.log("Got remote stream", e);
+    var el = new Audio();
+    el.autoplay = true;
+    attachMediaStream(el, e.stream);
+}
+
+document.getElementById('msg2').addEventListener('click', function () {
+    if (dc2) dc2.send("pong");
+}, false);
+
+</script>
+</body>
+</html>
